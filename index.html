@@ -59,7 +59,7 @@
 </head>
 <body class="text-brand-text flex flex-col h-screen overflow-hidden">
 
-    <div id="recording-saved-popup" class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] hidden transform transition-all duration-300 -translate-y-10 opacity-0 bg-emerald-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-4 text-xs">
+    <div id="recording-saved-popup" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] hidden transform transition-all duration-300 translate-y-10 opacity-0 bg-emerald-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-4 text-xs">
         <div class="flex items-center gap-2">
             <i class="fa-solid fa-circle-check text-emerald-400"></i>
             <span>Recording saved</span>
@@ -82,6 +82,27 @@
                 </button>
                 <button id="confirm-action-btn" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-sm transition-colors">
                     Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rename-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div class="flex items-center gap-3 text-brand-dark mb-4">
+                <i class="fa-solid fa-pen-to-square text-xl text-emerald-600"></i>
+                <h3 class="text-lg font-normal">Rename Session</h3>
+            </div>
+            <div class="mb-6">
+                <label for="rename-input" class="block text-xs text-brand-subtle mb-2">New session title</label>
+                <input type="text" id="rename-input" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-brand-dark text-sm">
+            </div>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeRenameModal()" class="bg-gray-100 hover:bg-gray-200 text-brand-dark px-4 py-2 rounded-xl text-sm transition-colors">
+                    Cancel
+                </button>
+                <button id="rename-action-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm transition-colors">
+                    Save
                 </button>
             </div>
         </div>
@@ -117,10 +138,6 @@
         </nav>
 
         <div class="flex items-center gap-2">
-            <button id="header-back-btn" onclick="closeHistoricalDetailView()" class="hidden text-xs bg-gray-100 hover:bg-gray-200 text-brand-dark px-3 py-1.5 rounded-xl transition-all items-center gap-1.5 shadow-xs">
-                <i class="fa-solid fa-arrow-left"></i>
-                <span>back to list</span>
-            </button>
             <button onclick="recheckFirebaseWeb()" class="text-xs bg-white text-brand-dark hover:bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs">
                 <i class="fa-solid fa-arrows-rotate mr-0.5" id="web-refresh-icon"></i>
                 <span class="hidden sm:inline">Refresh Sync</span>
@@ -212,7 +229,12 @@
             <div id="history-detail-view" class="hidden flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3 shrink-0">
                     <div class="flex items-center gap-3">
+                        <button onclick="closeHistoricalDetailView()" class="text-xs bg-gray-100 hover:bg-gray-200 text-brand-dark px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs mr-2">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span class="hidden sm:inline">Back to list</span>
+                        </button>
                         <h2 class="text-base sm:text-lg text-brand-dark truncate max-w-xs sm:max-w-md font-normal cursor-pointer hover:text-emerald-600 transition-colors" id="history-detail-title" onclick="renameActiveSession()" title="Click to rename">Session Chart</h2>
+                        <button onclick="renameActiveSession()" class="text-gray-400 hover:text-brand-dark transition-colors"><i class="fa-solid fa-pen-to-square text-sm"></i></button>
                     </div>
                     <div>
                         <button id="history-detail-download-btn" class="text-xs px-3 py-2 bg-emerald-800 text-white hover:bg-emerald-950 rounded-xl transition-colors flex items-center gap-1">
@@ -371,28 +393,33 @@
             if (isRecording && appOnline) {
                 badge.innerHTML = `
                     <div class="flex items-center gap-2">
-                        <span class="text-xs text-brand-subtle font-mono">${currentLuxVal !== null ? parseFloat(currentLuxVal).toFixed(3) + ' Lv' : '0.000 Lv'}</span>
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-orange-100 text-orange-800 border border-orange-200 uppercase tracking-wider">
-                            <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                            <span>recording</span>
-                        </span>
-                    </div>
-                `;
-            } else if (dbConnected && appOnline) {
-                badge.innerHTML = `
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-brand-subtle font-mono">${currentLuxVal !== null ? parseFloat(currentLuxVal).toFixed(3) + ' Lv' : '0.000 Lv'}</span>
                         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                             <span>connected</span>
                         </span>
                     </div>
                 `;
+            } else if (dbConnected && appOnline) {
+                badge.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>connected</span>
+                        </span>
+                    </div>
+                `;
+            } else if (dbConnected && !appOnline) {
+                badge.innerHTML = `
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-red-100 text-red-800 border border-red-200 uppercase tracking-wider">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                        <span>App Offline</span>
+                    </span>
+                `;
             } else {
                 badge.innerHTML = `
                     <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-red-100 text-red-800 border border-red-200 uppercase tracking-wider">
                         <span class="w-2 h-2 rounded-full bg-red-500"></span>
-                        <span>disconnected</span>
+                        <span>Web Offline</span>
                     </span>
                 `;
             }
@@ -483,7 +510,7 @@
             if (!popup || !viewBtn) return;
             
             viewBtn.onclick = () => {
-                popup.classList.add("-translate-y-10", "opacity-0");
+                popup.classList.add("translate-y-10", "opacity-0");
                 setTimeout(() => popup.classList.add("hidden"), 300);
                 switchTab('history');
                 viewSession(id);
@@ -491,11 +518,11 @@
             
             popup.classList.remove("hidden");
             setTimeout(() => {
-                popup.classList.remove("-translate-y-10", "opacity-0");
+                popup.classList.remove("translate-y-10", "opacity-0");
             }, 10);
             
             setTimeout(() => {
-                popup.classList.add("-translate-y-10", "opacity-0");
+                popup.classList.add("translate-y-10", "opacity-0");
                 setTimeout(() => popup.classList.add("hidden"), 300);
             }, 8000);
         }
@@ -588,16 +615,44 @@
                 document.getElementById("session-name").value = label;
             });
 
-            db.ref("liveData").on("value", (snap) => {
+            let baseTime = null;
+
+            db.ref("liveData").on("child_added", (snap) => {
                 const data = snap.val();
-                if (!data) {
-                    liveDataPoints = {};
-                    updateChart([]);
-                    return;
+                if (!data) return;
+                
+                const key = snap.key;
+                const isFirst = Object.keys(liveDataPoints).length === 0;
+                liveDataPoints[key] = data;
+                
+                if (isFirst) {
+                    baseTime = data.timestamp;
+                    if (chart && activeViewSessionId === null) {
+                        chart.data.datasets[0].data = [{ x: 0, y: data.lux }];
+                        triggerScheduleChartUpdate();
+                    }
+                } else {
+                    if (baseTime === null) {
+                        baseTime = Object.values(liveDataPoints)[0].timestamp;
+                    }
+                    if (chart && activeViewSessionId === null) {
+                        const x = parseFloat(((data.timestamp - baseTime) / 1000.0).toFixed(3));
+                        chart.data.datasets[0].data.push({ x: x, y: data.lux });
+                        triggerScheduleChartUpdate();
+                    }
                 }
-                liveDataPoints = data;
-                const sorted = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
-                updateChart(sorted);
+            });
+
+            db.ref("liveData").on("child_removed", (snap) => {
+                const key = snap.key;
+                delete liveDataPoints[key];
+                if (Object.keys(liveDataPoints).length === 0) {
+                    baseTime = null;
+                    if (chart) {
+                        chart.data.datasets[0].data = [];
+                        triggerScheduleChartUpdate();
+                    }
+                }
             });
 
             db.ref("sessions").on("value", (snap) => {
@@ -721,22 +776,56 @@
         function renameSession(id) {
             const session = syncedSessions[`session_${id}`];
             if (!session) return;
-            const newTitle = prompt("Enter a new title for this light recording:", session.title);
-            if (newTitle !== null) {
-                const trimmed = newTitle.trim();
-                if (trimmed.length > 0) {
+            
+            const modal = document.getElementById("rename-modal");
+            const input = document.getElementById("rename-input");
+            const btn = document.getElementById("rename-action-btn");
+            
+            input.value = session.title;
+            modal.classList.remove("hidden");
+            input.focus();
+            
+            const handleSave = () => {
+                const trimmed = input.value.trim();
+                if (trimmed.length > 0 && trimmed !== session.title) {
                     db.ref(`sessions/session_${id}/title`).set(trimmed)
                         .then(() => {
                             logDiagnostic(`Successfully renamed session ${id} to "${trimmed}"`);
                             if (activeViewSessionId == id) {
                                 document.getElementById("history-detail-title").innerText = trimmed;
                             }
+                            closeRenameModal();
                         })
                         .catch(err => {
                             logDiagnostic(`Failed to rename session: ${err.message}`);
+                            closeRenameModal();
                         });
+                } else {
+                    closeRenameModal();
                 }
-            }
+            };
+            
+            const handleKeydown = (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSave();
+                } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    closeRenameModal();
+                }
+            };
+            
+            btn.onclick = handleSave;
+            input.onkeydown = handleKeydown;
+        }
+        
+        function closeRenameModal() {
+            const modal = document.getElementById("rename-modal");
+            const input = document.getElementById("rename-input");
+            const btn = document.getElementById("rename-action-btn");
+            modal.classList.add("hidden");
+            btn.onclick = null;
+            input.onkeydown = null;
         }
 
         function renameActiveSession() {
@@ -937,12 +1026,6 @@
 
             document.getElementById("history-list-view").classList.add("hidden");
             document.getElementById("history-detail-view").classList.remove("hidden");
-            
-            const backBtn = document.getElementById("header-back-btn");
-            if (backBtn) {
-                backBtn.classList.remove("hidden");
-                backBtn.classList.add("flex");
-            }
 
             document.getElementById("history-detail-title").innerText = `${session.title}`;
             const durationSec = (session.durationMs / 1000.0).toFixed(1);
@@ -1017,12 +1100,6 @@
             activeViewSessionId = null;
             document.getElementById("history-detail-view").classList.add("hidden");
             document.getElementById("history-list-view").classList.remove("hidden");
-            
-            const backBtn = document.getElementById("header-back-btn");
-            if (backBtn) {
-                backBtn.classList.add("hidden");
-                backBtn.classList.remove("flex");
-            }
 
             const selectAll = document.getElementById("select-all-sessions");
             if (selectAll) selectAll.checked = false;
@@ -1112,7 +1189,7 @@
         }
 
         function switchTab(viewId) {
-            if (viewId === 'history') {
+            if (viewId !== 'history' || (viewId === 'history' && activeViewSessionId !== null)) {
                 closeHistoricalDetailView();
             }
 
