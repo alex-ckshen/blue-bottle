@@ -102,7 +102,7 @@
                     Cancel
                 </button>
                 <button id="rename-action-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm transition-colors">
-                    Save
+                    Save Changes
                 </button>
             </div>
         </div>
@@ -130,6 +130,10 @@
             <span onclick="switchTab('history')" id="nav-history" class="nav-item flex items-center gap-2 px-5 py-2.5 text-sm text-brand-text rounded-lg hover:bg-brand-active cursor-pointer transition-all font-normal">
                 <i class="fa-solid fa-clock-rotate-left text-sm"></i>
                 <span>history</span>
+            </span>
+            <span onclick="switchTab('naming')" id="nav-naming" class="nav-item flex items-center gap-2 px-5 py-2.5 text-sm text-brand-text rounded-lg hover:bg-brand-active cursor-pointer transition-all font-normal">
+                <i class="fa-solid fa-pen-to-square text-sm"></i>
+                <span>naming</span>
             </span>
             <span onclick="switchTab('consoles')" id="nav-consoles" class="nav-item flex items-center gap-2 px-5 py-2.5 text-sm text-brand-text rounded-lg hover:bg-brand-active cursor-pointer transition-all font-normal">
                 <i class="fa-solid fa-terminal text-sm"></i>
@@ -167,13 +171,29 @@
                         <span>Clear</span>
                     </button>
                 </div>
-                <div class="flex items-center gap-2 w-full sm:w-1/2">
+                <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
                     <span class="text-xs text-brand-subtle uppercase tracking-wider whitespace-nowrap">session</span>
-                    <input type="text" id="session-name" placeholder="Remote Session" class="flex-1 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-brand-dark text-xs bg-gray-50/50">
-                    <button onclick="updateSessionLabel()" class="bg-white hover:bg-gray-50 text-brand-dark border border-gray-300 py-2 px-3 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 whitespace-nowrap">
-                        <i class="fa-solid fa-signature text-xs"></i>
-                        <span>Sync</span>
-                    </button>
+                    <div class="flex items-center gap-1.5 w-48 relative" id="custom-dropdown-container">
+                        <div id="naming-experiment-dropdown-custom" class="w-full px-3 py-2 border border-gray-200 rounded-xl bg-gray-50/50 text-brand-dark text-[11px] flex items-center justify-between cursor-pointer hover:border-emerald-400 transition-all">
+                            <span id="selected-type-display">Select Type</span>
+                            <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </div>
+                        <div id="dropdown-options" class="absolute bottom-full left-0 w-full mb-1 bg-white border border-gray-200 rounded-xl shadow-xl z-[100] hidden overflow-hidden">
+                            <!-- Options -->
+                        </div>
+                        <button onclick="switchTab('naming')" class="p-2 text-gray-400 hover:text-emerald-600 transition-colors" title="Manage experiment types">
+                             <i class="fa-solid fa-pen-to-square text-lg"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-0.5 bg-gray-100 p-0.5 rounded-xl border border-gray-200" id="naming-trial-buttons">
+                        <button onclick="namingTrialSelected('1')" id="btn-trial-1" class="px-3.5 py-2 rounded-lg text-sm transition-colors hover:bg-gray-200 text-brand-text">1</button>
+                        <button onclick="namingTrialSelected('2')" id="btn-trial-2" class="px-3.5 py-2 rounded-lg text-sm transition-colors hover:bg-gray-200 text-brand-text">2</button>
+                        <button onclick="namingTrialSelected('3')" id="btn-trial-3" class="px-3.5 py-2 rounded-lg text-sm transition-colors hover:bg-gray-200 text-brand-text">3</button>
+                        <button onclick="namingTrialSelected('4')" id="btn-trial-4" class="px-3.5 py-2 rounded-lg text-sm transition-colors hover:bg-gray-200 text-brand-text">4</button>
+                        <button onclick="namingTrialSelected('5')" id="btn-trial-5" class="px-3.5 py-2 rounded-lg text-sm transition-colors hover:bg-gray-200 text-brand-text">5</button>
+                        <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                        <input type="text" id="inline-trial-input" placeholder="..." class="w-16 h-9 px-2 bg-transparent text-sm text-center outline-none focus:bg-white/50 transition-colors rounded-lg" oninput="namingTrialSelected(this.value)">
+                    </div>
                 </div>
             </div>
         </div>
@@ -229,10 +249,6 @@
             <div id="history-detail-view" class="hidden flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-100 pb-3 shrink-0">
                     <div class="flex items-center gap-3">
-                        <button onclick="closeHistoricalDetailView()" class="text-xs bg-gray-100 hover:bg-gray-200 text-brand-dark px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs mr-2">
-                            <i class="fa-solid fa-arrow-left"></i>
-                            <span class="hidden sm:inline">Back to list</span>
-                        </button>
                         <h2 class="text-base sm:text-lg text-brand-dark truncate max-w-xs sm:max-w-md font-normal cursor-pointer hover:text-emerald-600 transition-colors" id="history-detail-title" onclick="renameActiveSession()" title="Click to rename">Session Chart</h2>
                         <button onclick="renameActiveSession()" class="text-gray-400 hover:text-brand-dark transition-colors"><i class="fa-solid fa-pen-to-square text-sm"></i></button>
                     </div>
@@ -261,6 +277,24 @@
                         <span id="history-detail-max" class="text-sm text-emerald-800 font-mono font-normal">-</span>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div id="view-naming" class="view-panel p-4 sm:p-6 flex-1 hidden overflow-y-auto w-full lg:w-3/4 max-w-4xl mx-auto flex-col">
+            <h2 class="text-xl text-brand-dark font-normal mb-6 leading-tight">Experiment Types Configuration</h2>
+            <div class="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm mb-6 relative hover:shadow-md transition-shadow">
+                <h3 class="text-brand-dark font-medium mb-4 text-sm">Add New</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="new-experiment-type-input" onkeyup="if(event.key==='Enter') addExperimentType()" placeholder="Desired type..." class="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm text-brand-dark">
+                    <button onclick="addExperimentType()" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm transition-colors shadow-sm flex items-center gap-2 font-medium">
+                        <i class="fa-solid fa-plus text-xs"></i> <span class="hidden sm:inline">Add</span>
+                    </button>
+                </div>
+            </div>
+            
+            <h3 class="text-brand-dark font-medium mb-3 text-sm px-2">Available Experiment Types</h3>
+            <div id="experiment-types-list" class="flex flex-col gap-2">
+                <!-- Added dynamically -->
             </div>
         </div>
 
@@ -475,6 +509,7 @@
                             ticks: { color: "#64748B" }
                         },
                         y: {
+                            beginAtZero: true,
                             grid: { color: "#F1F5F9" },
                             ticks: { color: "#64748B" }
                         }
@@ -610,9 +645,21 @@
                 });
             });
 
-            db.ref("commands/sessionName").on("value", (snap) => {
-                const label = snap.val() || "";
-                document.getElementById("session-name").value = label;
+            db.ref("commands/experimentTypes").on("value", (snap) => {
+                const types = snap.val() || [];
+                renderExperimentTypes(types);
+                updateDropdownOptions(types);
+            });
+
+            db.ref("commands/selectedExperimentType").on("value", (snap) => {
+                const type = snap.val() || "";
+                const display = document.getElementById("selected-type-display");
+                if (display) display.innerText = type || "Select Type";
+            });
+
+            db.ref("commands/selectedTrial").on("value", (snap) => {
+                const trial = snap.val() || "1";
+                updateTrialUI(trial);
             });
 
             let baseTime = null;
@@ -687,19 +734,125 @@
             });
         }
 
-        function updateSessionLabel() {
-            const nameInput = document.getElementById("session-name");
-            const inputVal = nameInput ? nameInput.value.trim() : "";
-            const finalName = inputVal || getDefaultSessionName();
-            if (nameInput) nameInput.value = finalName;
+        function updateSessionLabel() {} // Disabled
 
-            db.ref("commands/sessionName").set(finalName)
-                .then(() => {
-                    logDiagnostic(`Database updated: sessionName configured -> "${finalName}"`);
-                })
-                .catch(err => {
-                    logDiagnostic(`Failed database update: ${err.message}`);
-                });
+        function renderExperimentTypes(types) {
+            const list = document.getElementById("experiment-types-list");
+            if (!list) return;
+            if (!types || types.length === 0) {
+                list.innerHTML = '<div class="text-sm text-brand-subtle py-4 text-center bg-gray-50 border border-gray-100 rounded-2xl">No experiment types added yet.</div>';
+                return;
+            }
+            list.innerHTML = types.map((t, idx) => `
+                <div class="flex items-center justify-between bg-gray-50 hover:bg-gray-100 border border-gray-100 rounded-xl px-4 py-3 transition-colors">
+                    <span class="text-brand-dark text-sm">${t}</span>
+                    <button onclick="removeExperimentType(${idx})" class="text-gray-400 hover:text-red-500 transition-colors p-1">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function updateDropdownOptions(types) {
+            const display = document.getElementById("selected-type-display");
+            const optionsContainer = document.getElementById("dropdown-options");
+            if (!optionsContainer) return;
+
+            db.ref("commands/selectedExperimentType").once("value", snap => {
+                const currentVal = snap.val() || "";
+                display.innerText = currentVal || "Select Type";
+                
+                let html = '<div class="px-3 py-2 hover:bg-emerald-50 cursor-pointer text-[11px] text-gray-500 italic" onclick="selectType(\'\')">Clear Selection</div>';
+                if (types && types.length > 0) {
+                    html += types.map(t => `
+                        <div class="px-3 py-2 hover:bg-emerald-50 cursor-pointer text-[11px] text-brand-dark flex justify-between items-center ${t === currentVal ? 'bg-emerald-50' : ''}" onclick="selectType('${t}')">
+                            <span>${t}</span>
+                            ${t === currentVal ? '<i class="fa-solid fa-check text-emerald-600"></i>' : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    html += '<div class="px-3 py-2 text-[11px] text-gray-400 text-center">No types added yet</div>';
+                }
+                optionsContainer.innerHTML = html;
+            });
+        }
+
+        function selectType(type) {
+            db.ref("commands/selectedExperimentType").set(type);
+            document.getElementById("dropdown-options").classList.add("hidden");
+        }
+
+        function addExperimentType() {
+            const input = document.getElementById("new-experiment-type-input");
+            const val = input.value.trim();
+            if(!val) return;
+            db.ref("commands/experimentTypes").once("value", snap => {
+                const types = snap.val() || [];
+                if (!types.includes(val)) {
+                    types.push(val);
+                    db.ref("commands/experimentTypes").set(types).then(() => {
+                        input.value = "";
+                        logDiagnostic(`Added experiment type: ${val}`);
+                    });
+                } else {
+                    alert("Type already exists");
+                }
+            });
+        }
+
+        function removeExperimentType(idx) {
+            db.ref("commands/experimentTypes").once("value", snap => {
+                const types = snap.val() || [];
+                if (idx >= 0 && idx < types.length) {
+                    types.splice(idx, 1);
+                    db.ref("commands/experimentTypes").set(types);
+                }
+            });
+        }
+
+        function namingTrialSelected(trial) {
+            db.ref("commands/selectedTrial").set(String(trial));
+        }
+
+        function updateTrialUI(trial) {
+            const standardTrials = ['1','2','3','4','5'];
+            for(let i=1; i<=5; i++) {
+                const btn = document.getElementById(`btn-trial-${i}`);
+                if(btn) {
+                    if (trial == i) {
+                        btn.className = "px-3.5 py-2 rounded-lg text-sm transition-colors bg-emerald-600 text-white font-medium shadow-sm active-trial";
+                    } else {
+                        btn.className = "px-3.5 py-2 rounded-lg text-sm transition-colors hover:bg-gray-200 text-brand-dark";
+                    }
+                }
+            }
+            
+            const inlineInput = document.getElementById("inline-trial-input");
+            if (inlineInput) {
+                if (!standardTrials.includes(String(trial)) && trial !== "") {
+                    inlineInput.value = trial;
+                    inlineInput.className = "w-16 h-9 px-2 bg-emerald-600 text-white font-medium text-sm text-center outline-none transition-colors rounded-lg shadow-sm";
+                } else {
+                    if (standardTrials.includes(String(trial))) {
+                         inlineInput.value = "";
+                    }
+                    inlineInput.className = "w-16 h-9 px-2 bg-transparent text-brand-dark text-sm text-center outline-none focus:bg-white/50 transition-colors rounded-lg";
+                }
+            }
+        }
+
+        function getSelectedTrialLocally() {
+            const activeBtn = document.querySelector('.active-trial');
+            if (activeBtn) return activeBtn.innerText;
+            const val = document.getElementById("naming-trial-custom").value.trim();
+            return val || "1";
+        }
+
+        function updateLiveSessionName(type, trial) {
+            let sessionName = "Session";
+            if(type) sessionName = type;
+            if(trial) sessionName += " - " + trial;
+            db.ref("commands/sessionName").set(sessionName);
         }
 
         function toggleRecording() {
@@ -1241,6 +1394,22 @@
         window.onload = () => {
             initPlotChart();
             registerSocketListeners();
+
+            // Custom dropdown toggle
+            const dropdownBtn = document.getElementById("naming-experiment-dropdown-custom");
+            const options = document.getElementById("dropdown-options");
+            if (dropdownBtn && options) {
+                dropdownBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    options.classList.toggle("hidden");
+                });
+                options.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                });
+                document.addEventListener("click", () => {
+                    options.classList.add("hidden");
+                });
+            }
         };
     </script>
 </body>
