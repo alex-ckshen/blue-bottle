@@ -1326,15 +1326,15 @@
 
             openConfirmModal(
                 "Recycle Directory Sessions",
-                "Are you sure you want to soft-delete all historical session tables?",
+                "Are you sure you want to delete all historical session tables?",
                 () => {
                     db.ref("sessions").remove()
                         .then(() => {
-                            logDiagnostic("Successfully completed soft-delete request.");
+                            logDiagnostic("Successfully completed delete request.");
                             closeConfirmModal();
                         })
                         .catch(err => {
-                            logDiagnostic(`Soft-delete error: ${err.message}`);
+                            logDiagnostic(`Delete error: ${err.message}`);
                             closeConfirmModal();
                         });
                 }
