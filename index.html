@@ -59,6 +59,11 @@
 </head>
 <body class="text-brand-text flex flex-col h-screen overflow-hidden">
 
+    <!-- Floating Web Pull-to-Refresh Indicator -->
+    <div id="pull-refresh-indicator" class="fixed top-16 left-1/2 -translate-x-1/2 z-[9999] pointer-events-none transform -translate-y-20 opacity-0 transition-all duration-300 ease-out bg-white text-emerald-600 w-10 h-10 rounded-full shadow-lg flex items-center justify-center border border-gray-150">
+        <i class="fa-solid fa-arrows-rotate text-sm" id="pull-refresh-spinner"></i>
+    </div>
+
     <div id="recording-saved-popup" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[9999] hidden transform transition-all duration-300 translate-y-10 opacity-0 bg-emerald-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-4 text-xs">
         <div class="flex items-center gap-2">
             <i class="fa-solid fa-circle-check text-emerald-400"></i>
@@ -380,6 +385,9 @@
         let selectedSessions = new Set();
         let lastSessionKeys = new Set();
         let updateScheduled = false;
+        let selectedExperimentType = "";
+        let selectedTrial = "1";
+        let activeDevicesCount = 0;
 
         function getDefaultSessionName() {
             const date = new Date();
@@ -424,12 +432,14 @@
             const badge = document.getElementById("status-badge");
             if (!badge) return;
 
+            const deviceText = activeDevicesCount > 1 ? `connected (${activeDevicesCount} units)` : "connected";
+
             if (isRecording && appOnline) {
                 badge.innerHTML = `
                     <div class="flex items-center gap-2">
                         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            <span>connected</span>
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>recording (${deviceText})</span>
                         </span>
                     </div>
                 `;
@@ -438,7 +448,7 @@
                     <div class="flex items-center gap-2">
                         <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-wider">
                             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                            <span>connected</span>
+                            <span>${deviceText}</span>
                         </span>
                     </div>
                 `;
@@ -592,15 +602,21 @@
                             db.ref("commands/isRecording").set(false);
                         }
                     });
+
+                    liveDataPoints = {};
+                    currentLuxVal = null;
+                    rebuildLiveChart();
                 }
             });
 
             db.ref("currentLux").on("value", (snap) => {
                 const lux = snap.val();
-                if (lux !== null) {
+                if (lux !== null && appOnline) {
                     currentLuxVal = lux;
-                    updateSystemStatus();
+                } else {
+                    currentLuxVal = null;
                 }
+                updateSystemStatus();
             });
 
             db.ref("commands/isRecording").on("value", (snap) => {
@@ -612,6 +628,7 @@
 
                 if (wasRecording && !isRecording) {
                     db.ref("liveData").remove();
+                    liveDataPoints = {};
                     if (chart) {
                         chart.data.datasets[0].data = [];
                         triggerScheduleChartUpdate();
@@ -645,6 +662,25 @@
                 });
             });
 
+            db.ref("commands/isRecording").once("value", (recSnap) => {
+                const isRec = recSnap.val() || false;
+                if (!isRec) {
+                    db.ref("liveData").remove();
+                    liveDataPoints = {};
+                    if (chart) {
+                        chart.data.datasets[0].data = [];
+                        triggerScheduleChartUpdate();
+                    }
+                    logDiagnostic("Cold-purged residual stale liveData from cloud.");
+                }
+            });
+
+            db.ref("devices").on("value", (snap) => {
+                const devs = snap.val() || {};
+                activeDevicesCount = Object.keys(devs).length;
+                updateSystemStatus();
+            });
+
             db.ref("commands/experimentTypes").on("value", (snap) => {
                 const types = snap.val() || [];
                 renderExperimentTypes(types);
@@ -652,54 +688,46 @@
             });
 
             db.ref("commands/selectedExperimentType").on("value", (snap) => {
-                const type = snap.val() || "";
+                selectedExperimentType = snap.val() || "";
                 const display = document.getElementById("selected-type-display");
-                if (display) display.innerText = type || "Select Type";
+                if (display) display.innerText = selectedExperimentType || "Select Type";
             });
 
             db.ref("commands/selectedTrial").on("value", (snap) => {
-                const trial = snap.val() || "1";
-                updateTrialUI(trial);
+                selectedTrial = snap.val() || "1";
+                updateTrialUI(selectedTrial);
             });
 
-            let baseTime = null;
+            function rebuildLiveChart() {
+                if (!chart || activeViewSessionId !== null) return;
+                
+                const points = Object.values(liveDataPoints).sort((a, b) => a.timestamp - b.timestamp);
+                if (points.length === 0) {
+                    chart.data.datasets[0].data = [];
+                    triggerScheduleChartUpdate();
+                    return;
+                }
+                
+                const oldestTime = points[0].timestamp;
+                const plotData = points.map(p => ({
+                    x: parseFloat(((p.timestamp - oldestTime) / 1000.0).toFixed(3)),
+                    y: p.lux
+                }));
+                
+                chart.data.datasets[0].data = plotData;
+                triggerScheduleChartUpdate();
+            }
 
             db.ref("liveData").on("child_added", (snap) => {
                 const data = snap.val();
                 if (!data) return;
-                
-                const key = snap.key;
-                const isFirst = Object.keys(liveDataPoints).length === 0;
-                liveDataPoints[key] = data;
-                
-                if (isFirst) {
-                    baseTime = data.timestamp;
-                    if (chart && activeViewSessionId === null) {
-                        chart.data.datasets[0].data = [{ x: 0, y: data.lux }];
-                        triggerScheduleChartUpdate();
-                    }
-                } else {
-                    if (baseTime === null) {
-                        baseTime = Object.values(liveDataPoints)[0].timestamp;
-                    }
-                    if (chart && activeViewSessionId === null) {
-                        const x = parseFloat(((data.timestamp - baseTime) / 1000.0).toFixed(3));
-                        chart.data.datasets[0].data.push({ x: x, y: data.lux });
-                        triggerScheduleChartUpdate();
-                    }
-                }
+                liveDataPoints[snap.key] = data;
+                rebuildLiveChart();
             });
 
             db.ref("liveData").on("child_removed", (snap) => {
-                const key = snap.key;
-                delete liveDataPoints[key];
-                if (Object.keys(liveDataPoints).length === 0) {
-                    baseTime = null;
-                    if (chart) {
-                        chart.data.datasets[0].data = [];
-                        triggerScheduleChartUpdate();
-                    }
-                }
+                delete liveDataPoints[snap.key];
+                rebuildLiveChart();
             });
 
             db.ref("sessions").on("value", (snap) => {
@@ -780,6 +808,7 @@
         function selectType(type) {
             db.ref("commands/selectedExperimentType").set(type);
             document.getElementById("dropdown-options").classList.add("hidden");
+            updateLiveSessionName(type, selectedTrial);
         }
 
         function addExperimentType() {
@@ -804,14 +833,22 @@
             db.ref("commands/experimentTypes").once("value", snap => {
                 const types = snap.val() || [];
                 if (idx >= 0 && idx < types.length) {
+                    const removedType = types[idx];
                     types.splice(idx, 1);
-                    db.ref("commands/experimentTypes").set(types);
+                    db.ref("commands/experimentTypes").set(types).then(() => {
+                        db.ref("commands/selectedExperimentType").once("value", selSnap => {
+                            if (selSnap.val() === removedType) {
+                                selectType("");
+                            }
+                        });
+                    });
                 }
             });
         }
 
         function namingTrialSelected(trial) {
             db.ref("commands/selectedTrial").set(String(trial));
+            updateLiveSessionName(selectedExperimentType, String(trial));
         }
 
         function updateTrialUI(trial) {
@@ -861,13 +898,20 @@
                 const nextRecording = !isRecordingValue;
                 
                 if (nextRecording) {
-                    const nameInput = document.getElementById("session-name");
-                    const currentName = nameInput ? nameInput.value.trim() : "";
-                    if (!currentName) {
-                        const defaultName = getDefaultSessionName();
-                        if (nameInput) nameInput.value = defaultName;
-                        db.ref("commands/sessionName").set(defaultName);
+                    let finalName = "";
+                    const type = selectedExperimentType ? selectedExperimentType.trim() : "";
+                    const trial = selectedTrial ? selectedTrial.trim() : "1";
+                    
+                    if (type) {
+                        finalName = type;
+                        if (trial) {
+                            finalName += " - " + trial;
+                        }
+                    } else {
+                        finalName = getDefaultSessionName();
                     }
+                    db.ref("commands/sessionName").set(finalName);
+                    logDiagnostic(`Determined session name for stream: ${finalName}`);
                 }
                 
                 db.ref("commands/isRecording").set(nextRecording)
@@ -878,6 +922,46 @@
                         logDiagnostic(`Failed state sync: ${e.message}`);
                     });
             });
+        }
+
+        function sanitizeFilename(name) {
+            if (!name) return "unnamed";
+            // Remove filesystem restricted characters \ / : * ? " < > |
+            return name.replace(/[\\/:*?"<>|]/g, "_").trim();
+        }
+
+        function applyXlsxFormatting(ws) {
+            if (!ws) return;
+            for (let ref in ws) {
+                if (ref[0] === '!') continue;
+                const cell = ws[ref];
+                if (!cell) continue;
+
+                const colMatch = ref.match(/^[A-Z]+/);
+                if (!colMatch) continue;
+                const col = colMatch[0];
+                const rowNum = parseInt(ref.slice(col.length), 10);
+
+                if (rowNum === 1) continue; // Skip header
+
+                // Convert value to number if string
+                if (typeof cell.v === 'string') {
+                    const parsedNum = parseFloat(cell.v);
+                    if (!isNaN(parsedNum)) {
+                        cell.v = parsedNum;
+                        cell.t = 'n';
+                    }
+                }
+
+                if (cell.t === 'n' || typeof cell.v === 'number') {
+                    cell.t = 'n';
+                    if (col === 'A') {
+                        cell.z = '0.00'; // 2 decimal places for time
+                    } else if (col === 'B') {
+                        cell.z = '0.000'; // 3 decimal places for value
+                    }
+                }
+            }
         }
 
         function exportLiveExcel() {
@@ -897,11 +981,12 @@
             }));
 
             const ws = XLSX.utils.json_to_sheet(excelRows);
+            applyXlsxFormatting(ws);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Live Telemetry");
 
             const inputVal = document.getElementById("session-name").value.trim() || "remote_session";
-            const sanitizedName = inputVal.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            const sanitizedName = sanitizeFilename(inputVal);
             XLSX.writeFile(wb, `live_telemetry_${sanitizedName}.xlsx`);
             logDiagnostic("Live Excel export success.");
         }
@@ -1287,11 +1372,12 @@
             }));
 
             const ws = XLSX.utils.json_to_sheet(excelRows);
+            applyXlsxFormatting(ws);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Telemetry Session");
 
-            const sanitizedName = session.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            XLSX.writeFile(wb, `telemetry_session_${sanitizedName}.xlsx`);
+            const sanitizedName = sanitizeFilename(session.title);
+            XLSX.writeFile(wb, `${sanitizedName}.xlsx`);
             logDiagnostic("Historical Excel spreadsheet downloaded.");
         }
 
@@ -1391,9 +1477,99 @@
             logDiagnostic("Diagnostic console buffer cleared.");
         }
 
+        // Floating Web Touch-based Pull-To-Refresh Controller with haptics
+        let touchStartY = 0;
+        let touchStartStartX = 0;
+        let activePull = false;
+        const PULL_THRESHOLD = 80;
+        const MAX_PULL = 130;
+
+        const pullIndicator = document.getElementById("pull-refresh-indicator");
+        const pullSpinner = document.getElementById("pull-refresh-spinner");
+
+        function setupPullToRefresh() {
+            if (!pullIndicator || !pullSpinner) return;
+            
+            document.addEventListener("touchstart", (e) => {
+                if (e.touches.length !== 1) return;
+                
+                const target = e.target;
+                const scrollContainer = target.closest('.overflow-y-auto');
+                if (scrollContainer && scrollContainer.scrollTop > 0) {
+                    activePull = false;
+                    return;
+                }
+
+                touchStartY = e.touches[0].clientY;
+                touchStartStartX = e.touches[0].clientX;
+                activePull = true;
+            }, { passive: true });
+
+            document.addEventListener("touchmove", (e) => {
+                if (!activePull || e.touches.length !== 1) return;
+                
+                const currentY = e.touches[0].clientY;
+                const currentX = e.touches[0].clientX;
+                const dy = currentY - touchStartY;
+                const dx = currentX - touchStartStartX;
+                
+                if (dy > 0 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+                    const pullDistance = Math.min(MAX_PULL, dy * 0.4);
+                    
+                    pullIndicator.classList.remove("opacity-0");
+                    pullIndicator.style.transform = `translate(-50%, ${pullDistance}px)`;
+                    
+                    const rotateDegree = Math.min(360, (pullDistance / PULL_THRESHOLD) * 360);
+                    pullSpinner.style.transform = `rotate(${rotateDegree}deg)`;
+                    
+                    if (pullDistance >= PULL_THRESHOLD) {
+                        pullIndicator.classList.add("bg-emerald-50", "border-emerald-500", "scale-110");
+                        pullIndicator.classList.remove("bg-white", "border-gray-150");
+                    } else {
+                        pullIndicator.classList.remove("bg-emerald-50", "border-emerald-500", "scale-110");
+                        pullIndicator.classList.add("bg-white", "border-gray-150");
+                    }
+                }
+            }, { passive: true });
+
+            document.addEventListener("touchend", (e) => {
+                if (!activePull) return;
+                activePull = false;
+                
+                const currentY = e.changedTouches[0].clientY;
+                const dy = currentY - touchStartY;
+                const pullDistance = Math.min(MAX_PULL, dy * 0.4);
+
+                if (pullDistance >= PULL_THRESHOLD) {
+                    if (navigator.vibrate) {
+                        try {
+                            navigator.vibrate(40);
+                        } catch (err) {}
+                    }
+                    
+                    pullIndicator.style.transform = `translate(-50%, ${PULL_THRESHOLD}px)`;
+                    pullSpinner.classList.add("fa-spin");
+                    
+                    recheckFirebaseWeb();
+                    
+                    setTimeout(() => {
+                        pullSpinner.classList.remove("fa-spin");
+                        pullIndicator.style.transform = "translate(-50%, -100px)";
+                        pullIndicator.classList.add("opacity-0");
+                        pullIndicator.classList.remove("bg-emerald-50", "border-emerald-500", "scale-110");
+                        pullIndicator.classList.add("bg-white", "border-gray-150");
+                    }, 1000);
+                } else {
+                    pullIndicator.style.transform = "translate(-50%, -100px)";
+                    pullIndicator.classList.add("opacity-0");
+                }
+            });
+        }
+
         window.onload = () => {
             initPlotChart();
             registerSocketListeners();
+            setupPullToRefresh();
 
             // Custom dropdown toggle
             const dropdownBtn = document.getElementById("naming-experiment-dropdown-custom");
